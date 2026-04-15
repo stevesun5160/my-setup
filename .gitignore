@@ -1,0 +1,14 @@
+# Machine-specific Claude settings
+settings.local.json
+.claude/settings.local.json
+
+# Claude Code runtime dirs (not source files)
+.claude/skills/
+
+# npx skills 的 runtime cache（skills 本身要追蹤）
+.agents/.cache/
+
+# Node
+node_modules/
+
+docs

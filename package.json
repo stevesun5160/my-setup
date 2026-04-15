@@ -1,0 +1,32 @@
+{
+  "name": "my-setup",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "sync": "./scripts/sync-skills.sh",
+    "postinstall": "npx simple-git-hooks"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.32.1",
+  "devDependencies": {
+    "nano-staged": "^1.0.2",
+    "prettier": "^3.8.3",
+    "prettier-plugin-embed": "^0.5.1",
+    "simple-git-hooks": "^2.13.1"
+  },
+  "volta": {
+    "node": "24.14.1",
+    "pnpm": "10.33.0"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "./node_modules/.bin/nano-staged"
+  },
+  "nano-staged": {
+    "*": [
+      "prettier --write"
+    ]
+  }
+}

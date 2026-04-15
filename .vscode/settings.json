@@ -1,0 +1,14 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "cSpell.words": [
+    "blocklist",
+    "deepwiki",
+    "frontmatter",
+    "obra",
+    "Overengineering",
+    "playwriter",
+    "Vitest",
+    "writeups"
+  ]
+}
