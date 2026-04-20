@@ -1,236 +1,109 @@
 ---
 name: ito-prd
-description: 對功能需求進行動態訪談，收斂後產出結構化 PRD 存至本地或建立 GitHub Issue。使用者說「幫我做 PRD」或「幫我寫 spec」、需求待展開，或從 /ito-grill 銜接過來時觸發。不適用於 bug 修復、重構規劃、技術調研，或需求已明確無需訪談。
+description: 將使用者需求訪談後收斂為結構化 PRD，支援新增與編輯模式，最後存至 local 或建立 gh issue。使用者說「寫 PRD」、「整理需求成 PRD」、「開需求 issue」、「編輯既有 PRD」時使用。不適用於需要直接實作、純技術架構設計、或非需求文件的一般討論。
 ---
 
 # ito-prd
 
 ## 概覽
 
-對功能需求進行動態訪談，產出包含 4 個必要 section 的結構化 PRD，存至 `docs/prd/` 本地檔案或以 `gh` CLI 建立 GitHub Issue。支援從 `/ito-grill` context 無縫銜接，以及修訂模式（`/ito-prd <issue-number>`）。
+將使用者需求透過逐題追問收斂為結構化 PRD，最終產出存至 local 檔案或 gh issue。訪談聚焦產品層面，最後必須照固定模板輸出。
 
 ## 使用時機
 
-- 使用者說「幫我做 PRD」、「幫我寫 spec」、「我要開一個功能」
-- 功能需求需要展開成正式 spec
-- 從 `/ito-grill` 銜接過來，conversation 已有需求 summary
+- 使用者說「寫 PRD」、「整理需求」、「把需求寫成文件」
+- 使用者說「開一個需求 issue」、「把這個 feature 開成 issue」
+- 使用者說「編輯 `docs/prd/xxx.md`」或「改 issue #N 的 PRD」
+- ito-grill 收斂後使用者表示「那來寫 PRD」，主動接手
 
-**不應使用的情況：** bug 修復（用 `/ito-debug`）與重構規劃（用 `/ito-refactor`），或需求已完整定義無需訪談。
+**不應使用的情況：** 需要直接實作功能、純粹技術架構設計討論、非需求文件的一般筆記、或需求尚未成形需要先發散討論。
 
 ## 核心流程
 
-### 步驟 1：判斷模式
+### 步驟 1：判斷模式與來源
 
-檢查是否有 `<issue-number>` argument：
+從使用者 prompt 自動偵測兩個旗標：
 
-- 有 argument → 進入**修訂模式**，跳至「修訂模式」章節
-- 無 argument → 進入**訪談模式**，繼續步驟 2
+| 旗標 | 判斷依據 |
+|------|---------|
+| 新增模式 | Prompt 未提及既有檔案路徑或 issue 編號 |
+| 編輯模式（local） | Prompt 提及 `.md` 檔案路徑（e.g., `docs/prd/xxx.md`、「改 xxx PRD」） |
+| 編輯模式（gh issue） | Prompt 提及 issue 編號（e.g., `#123`、「編輯 issue 45」） |
 
-### 步驟 2：偵測 ito-grill Context
+若來源不明確，追問使用者一次再進入流程。
 
-檢查當前 conversation 是否包含來自 `/ito-grill` 的需求 summary：
+### 步驟 2：讀取既有 PRD（僅編輯模式）
 
-**有 context：** 整理已知資訊，以下列格式呈現：
+- 若為 local 編輯：讀取指定 `.md` 檔案內容
+- 若為 gh issue 編輯：取得該 issue 的 body 與 metadata
+- 將既有內容作為訪談起點，針對需要補強或修改的部分追問，不需從零重走完整訪談
 
-> 根據剛才的討論，我整理到以下資訊：
-> - 問題描述：[摘要]
-> - 目標使用者：[摘要]
-> - [其他已知項目]
->
-> 確認後我會從不足的部分繼續追問。
+新增模式跳過此步驟。
 
-使用者確認後，繼續步驟 3，已知資訊的問題不重複問。
+### 步驟 3：逐一追問
 
-**無 context：** 直接進入步驟 3，從問題描述開始訪談。
+依決策樹的每個分支逐步深挖，先解決有依賴關係的決策。訪談聚焦產品層面（使用者、情境、痛點、效益、邊界），不深入實作細節。
 
-### 步驟 3：動態訪談
-
-逐一追問計畫或設計的每個決策分支，直到與使用者達成共識。依照決策樹的每個分支逐步深挖，先解決有依賴關係的決策，直到 4 個必要 section 都有足夠資訊。
-
-**收斂條件（4 個必要 sections）：**
-
-1. **問題描述**：情境 + 痛點 + 目標。偵測到回答模糊時（例如只說「很不方便」），立即依序追問：
-   - 情境：是否有具體場景（誰、在什麼情況下、做什麼事）
-   - 痛點：是否有受影響的使用者角色與發生頻率
-   - 目標：是否有可驗證的成功狀態
-
-2. **User Stories**：行為級別，每條附編號（US-XX）、簡短標題、Given/When/Then。US 只描述使用者行為，不需考量 vertical slice 切法。
-
-3. **Out of Scope**：
-   - **即時**：每當使用者提到一個功能，確認「這次要做嗎，還是先排除？」
-   - **收斂前**：統一列出訪談中提到的所有功能，確認每項的包含／排除狀態
-
-4. **已知侷限**：硬限制 + 已知風險已記錄。收斂前主動盤點以下：
-   - 效能限制（例如：QPS、回應時間 SLA）
-   - 第三方依賴（例如：API 可用性、SDK 版本相容性）
-   - 時程限制（例如：外部 deadline、依賴其他 milestone）
-
-**訪談守則：**
-
+**四條守則：**
 1. 一回合只問一題。
-2. 每當前一個決策解鎖新子問題，且有明確因果關係時，先用一句話宣告依賴關係，再提下一題。
-3. 遇到技術問題，優先問使用者；若使用者不確定，標記為 Open Question，不得自行查驗 codebase。
+2. 當前一個決策解鎖新子問題且有因果關係時，先用一句話宣告依賴，再提下一題。
+3. 若問題可透過探索 codebase 回答，優先探索，不直接問使用者：
+   - 單一明確查詢（e.g., 確認某個 function 是否存在）→ 直接用 Grep / Glob
+   - 範圍不確定或需多輪搜尋 → 呼叫 Explore sub-agent，避免污染主對話 context
 4. 根據問題性質選擇對應格式（見「問題格式」章節）。
-5. 主動偵測技術不確定性（使用者提到「不確定」/「可能」/「還沒決定」、涉及套件選型、API 設計或第三方整合），偵測到時立即標記，計入步驟 4 清單。
 
-### 步驟 4：收斂確認
+確認每個 PRD Slot 訪到足以填入有意義內容的資訊深度；若單題回答不足以支撐完整填充，必須追問到深度夠為止（見「PRD Slot 覆蓋檢查表」章節）。User Stories 盡可能多列——當使用者描述不同角色、情境、或 edge case 時主動拆成新 US，因為 US 數量直接影響後續任務拆分與測試覆蓋。
 
-當 4 個必要 sections 資訊充足時，列出 checklist：
+### 步驟 4：收斂判斷
 
-> 訪談接近收斂，確認以下項目：
-> - [ ] 問題描述：情境、痛點、目標都已涵蓋
-> - [ ] User Stories：所有主要行為都有對應 story
-> - [ ] Out of Scope：明確列出不做的功能
-> - [ ] 已知侷限：效能／第三方依賴／時程 已盤點
+當所有 slot 已有可填答案，主動提示並列出所有未解問題，最後一個選項固定為「進入下一步」：
 
-若訪談中偵測到技術不確定點，列出清單供使用者確認：
+> 訪談已接近收斂，目前還有 X 個未解問題待確認：
+> - A）[未解問題 1]
+> - B）[未解問題 2]
+> - C）進入下一步
 
-> 我在訪談中偵測到以下技術不確定點，確認要加入 開放性問題 嗎？（可多選或自行補充）
-> - [ ] [偵測到的不確定點 1]
-> - [ ] [偵測到的不確定點 2]
+使用者也可在任何時候主動說「結束」或「可以了」觸發收斂。
 
-若未偵測到任何技術不確定點，改為詢問：
+### 步驟 5：產出 PRD
 
-> 訪談中是否有技術上尚未確定的地方？（例如：套件選型、API 設計、第三方整合）
+讀取 `assets/prd-template.md` 以取得目標輸出結構，依訪談內容填入每個 slot：
 
-- 確認有不確定點 → 記錄為 Open Questions
-- 確認無不確定點 → 繼續步驟 5
+- **問題描述**：現況、痛點、目標各自一段或列點
+- **User Stories**：盡可能多列，每個 US 含標題、角色/目標/效益、至少一個 AC 表格
+- **AC 表格**：每個 US 至少一列主路徑、能辨識時補上 edge case 列
+- **Out of Scope**：列出訪談中提及「這次不做」的項目
+- **已知侷限**：列出訪談中提及的硬限制與風險
+- **開放性問題**：僅當存在未解問題時才加入這個 section，否則整段省略
 
-### 步驟 5：建立本地 PRD 檔案
+填寫時保留模板的分隔線（`---`）與標題層級，不改動結構。
 
-讀取 `assets/prd-template.md`，提取各 section 結構與 placeholder 格式。所有文字使用繁體中文台灣用語，proper nouns 保留英文。
+### 步驟 6：選擇輸出方式
 
-依訪談結果填入各 section。Slug 生成規則：
-- 若使用者以英文描述功能（e.g., "user auth login"）→ 直接轉小寫 kebab-case：`user-auth-login`
-- 若使用者以中文描述（e.g., "用戶登入"）→ 翻譯為對應英文片語再轉 kebab-case：`user-auth-login`
-- 規則：全小寫、空格與底線皆換為 `-`、移除特殊符號
+詢問使用者：
 
-```bash
-mkdir -p docs/prd
-# 寫入 PRD markdown 至 docs/prd/{slug}.md
-```
+> PRD 已收斂，要存到 local 還是建立 gh issue？
+> - A）存 local（預設 `docs/prd/`，可指定其他路徑）
+> - B）建立 gh issue（label: `PRD`）
 
-建立後執行驗證：
+依選擇執行對應分支：
 
-```bash
-bash .claude/skills/ito-prd/scripts/validate-prd.sh docs/prd/{slug}.md
-```
+**Local 分支：**
+- 新增：依訪談主題自動命名檔案（e.g., `docs/prd/user-auth-refactor.md`），建立新檔
+- 編輯：覆蓋原檔案（依賴 git 管版本歷史）
+- 使用者可 override 路徑；若非預設路徑，執行前確認
+- 完成後回報實際寫入的檔案路徑
 
-若驗證失敗，依 stderr 錯誤補齊缺漏 section 後重新寫入。
-
-建立後告知使用者路徑，詢問：
-
-> PRD 已存至 `docs/prd/{slug}.md`，請 review 後告知。
->
-> 要直接建立 GitHub Issue，還是先存檔 review？
-
-**若選擇直接建立 Issue：** 跳至步驟 6，以當前 PRD 內容建立。
-**若選擇存檔 review：** 等使用者回覆確認後，Read `docs/prd/{slug}.md` 取得最新內容，再進入步驟 6。
-
-### 步驟 6：建立 GitHub Issue
-
-以 PRD 檔案內容建立 Issue：
-
-```bash
-gh issue create \
-  --title "[PRD] {功能名稱}" \
-  --label "PRD" \
-  --body "$(cat docs/prd/{slug}.md)"
-```
-
-若 `PRD` label 不存在，先執行：
-
-```bash
-gh label create "PRD" --color "#0075ca" --description "Product Requirements Document"
-```
-
-建立成功後，回報 Issue URL。
-
----
-
-## 修訂模式（`/ito-prd <issue-number>`）
-
-### 修訂步驟 1：讀取現有 Issue
-
-```bash
-gh issue view <issue-number> --json title,body,comments
-```
-
-### 修訂步驟 1.5：偵測 Sub-issues
-
-執行以下指令偵測是否有 sub-issues：
-
-```bash
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-gh api repos/${REPO}/issues/<issue-number>/sub_issues
-```
-
-- **無 sub-issues**：繼續修訂步驟 2。
-- **有 sub-issues**：記錄清單（標題、issue number），在修訂步驟 3 的 Preview 後附上影響分析（見修訂步驟 2.5）。
-
-### 修訂步驟 2：精簡訪談
-
-只追問「哪些部分需要修訂、原因是什麼」，不重複問已有的資訊。
-
-### 修訂步驟 2.5：US 差異分析（有 sub-issues 時執行）
-
-比對修訂前後的 US 清單，整理以下三類：
-
-- **新增的 US**：需要新建 task 的項目
-- **修改的 US**：對應的 sub-issue 編號，說明可能需要更新
-- **刪除的 US**：對應的 sub-issue 編號，提示使用者考慮是否關閉
-
-### 修訂步驟 3：Preview 修訂版 PRD
-
-以 fenced code block（` ```markdown `）完整輸出修訂版 PRD，逐 section 呈現，供使用者 review 後確認。
-
-若有 sub-issues 差異，在 Preview 後附上：
-
-> **Sub-issues 影響分析：**
-> - 需新建 task（對應新 US）：[US-XX] ...
-> - 需更新的 sub-issues：#[issue-number] [標題]（對應修改的 US-XX）
-> - 可能關閉的 sub-issues：#[issue-number] [標題]（對應刪除的 US-XX）
->
-> 請確認後告知是否繼續覆蓋 PRD，以及如何處理受影響的 sub-issues。
-
-### 修訂步驟 4：覆蓋 Issue 並新增 Changelog
-
-使用者確認後，依序執行：
-
-覆蓋 issue body：
-
-```bash
-gh issue edit <issue-number> --body "{新版 PRD markdown}"
-```
-
-新增 changelog comment：
-
-```bash
-gh issue comment <issue-number> --body "$(cat <<'EOF'
-## Changelog
-
-**日期：** {YYYY-MM-DD}
-
-**改了什麼：**
-- {改動項目 1}
-- {改動項目 2}
-
-**原因：**
-- {原因說明}
-EOF
-)"
-```
-
-同步更新本地 PRD 檔案：
-
-```bash
-# 以 docs/prd/ 目錄中的現有檔案比對 issue title，找出對應 slug
-ls docs/prd/
-```
-
-找到對應的 `docs/prd/{slug}.md` 後，將新版 PRD markdown 覆寫至該檔案。若 `docs/prd/` 不存在或找不到對應檔案，提示使用者確認本地路徑後再寫入。
-
----
+**gh issue 分支：**
+- PRD 名稱：依 PRD 內容自動產出（通常取核心主題或 US-01 標題）
+- Title 格式：`[PRD-{issue 編號}] {PRD 名稱}`，例如 issue 編號為 36 時，title 為 `[PRD-36] 廣告操作後台改版`
+- Body：完整 PRD markdown
+- Label：固定帶 `PRD`（顏色 `#0075ca`）
+  - 若 repo 無此 label，先建立該 label 再使用
+- 新增：先以 PRD 名稱建立 issue 取得編號，再回頭更新 title 補上 `[PRD-{編號}]` 前綴
+- 編輯：沿用原 issue 編號，確認 title 符合 `[PRD-{編號}] {PRD 名稱}` 格式，若不符則一併更新；body 直接覆蓋（依賴 issue edit history 管版本）
+- 以 gh CLI 執行建立 / 更新 / label 管理等動作，不綁定特定參數格式
+- 完成後回報 issue URL 或編號
 
 ## 問題格式
 
@@ -238,7 +111,7 @@ ls docs/prd/
 
 ### 格式 1 — 決策型
 
-使用者需要在幾個方向中做出設計或產品決策，且不同選項有不同的技術含義。**必須附推薦與理由。**
+使用者需要在幾個方向中做出產品或設計決策，且不同選項含義不同。**必須附推薦與理由。**
 
 ```
 ---
@@ -292,47 +165,67 @@ ls docs/prd/
 - 若情境複雜，可加複合選項：`D）以上都有，但⋯`。
 - 開放題拿到答案後，立即以決策型或現況確認型往下深挖。
 
+## PRD Slot 覆蓋檢查表
+
+訪談過程必須覆蓋以下 slot，且必須確保訪談產出的資訊能完整填入該 slot 而不留空白或流於泛泛；若單題回答太薄，繼續追問不同角度、例子、或反面情境，直到該 slot 能寫出具體可讀的內容為止：
+
+| Slot | 訪談目標 |
+|------|---------|
+| 現況 | 使用者目前在什麼情境下做什麼事 |
+| 痛點 | 現行做法有什麼問題、不足、或摩擦 |
+| 目標 | 功能成功後會達成什麼結果 |
+| US 角色 | 每個 US 的主體是誰（管理員、業務、廣告操作人員…） |
+| US 目標 | 該角色想達成什麼 |
+| US 效益 | 達成後獲得什麼價值 |
+| AC 主路徑 | 每個 US 至少一個主要驗收情境 |
+| AC edge case | 可辨識的邊界情境（不存在時可跳過，但應主動探問） |
+| Out of Scope | 這次「刻意不做」的功能或情境 |
+| 已知侷限 | 硬限制（rate limit、權限、第三方依賴）與已知風險 |
+
 ## 常見合理化藉口
 
 | 合理化藉口 | 實際情況 |
-|---|---|
-| 「需求看起來夠清楚了，不用訪談」 | 跳過訪談會累積隱性假設，導致 PRD 缺漏關鍵邊界條件 |
-| 「User Stories 寫幾條就好」 | Stories 是 `/ito-tasks` 拆 sub-issues 的依據，不完整會讓拆分失準 |
-| 「技術不確定的事先不管」 | Open Questions 若不在 PRD 階段標記，進入實作才發現會導致需求返工 |
-| 「這個技術問題我查一下 code 就好」 | 技術細節只能來自使用者陳述，探索 codebase 會讓 PRD 混入實作假設 |
+|-----------|---------|
+| 「這題很簡單，不需要問」 | 跳過追問會累積隱性假設，產出空洞的 PRD |
+| 「使用者說可以了，不用再問」 | 收斂判斷由 agent 主導，確認所有 slot 都已覆蓋再收斂 |
+| 「一次問多題比較快」 | 多題並問會讓使用者遺漏分支，破壞決策樹的完整性 |
+| 「這個 slot 已經問過一題了，不用再深入」 | 單題通常無法涵蓋完整 slot；必須確認回答足以填入 slot 而不留空白或流於泛泛，若薄弱則繼續追問不同角度、例子、或反面情境 |
+| 「US 只要 1 個就夠了」 | US 盡可能多列，會影響後續任務拆分與測試覆蓋 |
+| 「開放性問題 空著寫『無』比較工整」 | 「選填」即表示無未解問題時應省略整個 section |
+| 「技術細節也順便問一問」 | 訪談聚焦產品層面，技術深入會稀釋需求討論、拖長訪談 |
 
 ## 警訊
 
 - 一回合出現兩個以上問題
-- User Stories 只有功能級別（「使用者可以登入」），缺乏行為細節與 Given/When/Then
-- PRD 沒有 Out of Scope section
-- 遇到技術問題自行查驗 codebase，而非問使用者或標記 Open Question
-- Out of Scope 完全靠使用者主動說，沒有即時追問
-- 修訂模式有 sub-issues 但跳過差異分析直接覆蓋 PRD
-- 修訂模式跳過 Preview 直接覆蓋 issue body
+- 問題沒有選項，也沒有開放情境說明
+- 決策型問題缺少推薦與理由
+- 跳過 codebase 探索直接問使用者已可查證的技術事實
+- 使用者回答超出選項範圍，agent 直接接受後進下一題，未追問
+- 產出的 PRD 缺少固定 section（問題描述、US、Out of Scope、已知侷限）
+- 無未解問題卻仍產出 開放性問題 section
+- 編輯模式走了完整從零訪談流程（應以既有 PRD 為起點只補強差異）
+- gh issue title 缺少 `[PRD-{編號}]` 前綴，或編號與實際 issue 編號不一致
 
 ## 驗證
 
-- [ ] 4 個必要 sections 都已填入（問題描述、User Stories、Out of Scope、已知侷限）
-- [ ] 每條 User Story 都有編號（US-XX）、簡短標題、Given/When/Then
-- [ ] 問題描述三項（情境／痛點／目標）回答模糊時都有深追
-- [ ] Out of Scope：訪談中每個提到的功能都有即時確認，收斂前有統一盤點
-- [ ] 已知侷限：效能／第三方依賴／時程已盤點
-- [ ] `docs/prd/{slug}.md` 本地檔案已建立
-- [ ] 若選擇建立 Issue：從本地檔案讀取內容後建立，title 以 `[PRD]` 開頭，label 含 `PRD`
-- [ ] 修訂模式：sub-issues 偵測已執行；若有，差異分析已呈現且使用者已確認
-- [ ] 修訂模式：issue body 已覆蓋，changelog comment 已新增
+- [ ] 所有 PRD slot 均已透過訪談或既有 PRD 取得填充內容
+- [ ] 每題使用正確格式（決策型 / 現況確認型 / 開放型）
+- [ ] 收斂提示已發出，使用者確認進入下一步
+- [ ] 產出 PRD 結構與 `assets/prd-template.md` 一致
+- [ ] 若無未解問題，開放性問題 section 已省略
+- [ ] 使用者選擇 local 時，檔案已寫入預期路徑並回報路徑
+- [ ] 使用者選擇 gh 時，issue 已建立 / 更新，且帶有 `PRD` label，回報 issue URL
+- [ ] gh issue title 符合 `[PRD-{編號}] {PRD 名稱}` 格式，且編號與實際 issue 編號一致
 
 ## 錯誤處理
 
-- 若 `gh issue create` 失敗，檢查 `gh auth status`，提示使用者執行 `! gh auth login`
-- 若 `gh api .../sub_issues` 失敗（例如：repo 未啟用 sub-issues 功能或權限不足），回報錯誤訊息，提示使用者手動確認是否有相關 task，繼續修訂流程
-- 若使用者在訪談中途說「先跳過」，記錄為未解問題，計入收斂 checklist
-- 若使用者回答「我不知道」，用反向問題追問（從結果或相反情境切入）；依然不知道則記錄為未解問題繼續訪談
-- 若修訂模式的 issue number 找不到，回報錯誤並要求確認正確的 issue number
+- 若使用者中途說「先跳過這題」，記錄為未解問題，計入收斂提示的 X 值，並於產出時列入 開放性問題。
+- 若使用者回答「我不知道」：先用反向追問（從結果、影響、相反情境切入）引導；仍無法回答則記錄為未解問題。
+- 若使用者回答超出選項範圍，不直接接受後進下一題；而是根據該回答追問，釐清其產品含義或決策影響，直到充分理解再繼續。
+- 若編輯模式指定的檔案或 issue 不存在，告知使用者並退回「新增模式」或改指定正確來源。
+- 若 gh 分支時 repo 沒有 `PRD` label，先建立該 label（顏色 `#0075ca`）再繼續；若建立失敗，告知使用者並暫停等待指示。
+- 若使用者同時提供 local 路徑與 issue 編號（來源衝突），追問使用者選定單一來源再繼續。
 
 ## 延伸參考
 
-- 在進入訪談前，使用 `/ito-grill` 釐清模糊需求
-- 多個 US 可能對應一個 task，由未來的 `ito-tasks` 依 vertical slice 策略合併；US 本身只需描述使用者行為，不需考量切分方式
-- 使用 `/ito-tasks` 根據完成的 PRD issue 拆分 sub-issues
+- `assets/prd-template.md`：PRD 模板
