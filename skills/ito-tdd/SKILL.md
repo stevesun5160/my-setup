@@ -1,131 +1,172 @@
 ---
 name: ito-tdd
-description: 以 TDD 紅綠重構流程開發新功能或修正 bug。強制先完成 Planning 並取得使用者批准才開始動工；修 bug 時走 Prove-It 變體，先寫能重現問題的 failing test 再改 code。當使用者明確要求「TDD」「先寫測試」「紅綠重構」「Prove-It」或測試先行時觸發。不適用於純 refactor、純 debug、或使用者未要求測試先行的一般實作任務。
+description: 以測試驅動開發引導功能實作與 bug 修復。使用者明確提到 TDD、red-green-refactor 或 test-first 時使用。不適用於純設定變更、文件更新或無行為影響的靜態修改。
 ---
 
 # ito-tdd
 
 ## 概覽
 
-以 tracer bullet 流程執行 TDD：每一回合只寫一個 failing test，再補上剛好足夠讓它通過的實作，逐步逼近完整行為。修 bug 時走 Prove-It 變體，先用 failing test 重現問題再開始修。整個流程強制先完成 Planning 並取得使用者批准，才進入寫 code 階段。
+以 red-green-refactor 循環實作與 bug 修復。透過公開介面驗證行為，確保測試在重構後依然有效。
 
 ## 使用時機
 
-- 使用者明確說出「TDD」「先寫測試」「紅綠重構」「測試先行」。
-- 使用者要求「用 Prove-It 修 bug」或「先寫 failing test 重現再修」。
-- 實作新功能，且 behavior 需求已經明確。
-- 修 bug 任務，且要求先重現再修。
+- 使用者明確提到 TDD、red-green-refactor 或 test-first
+- 要求以「先寫測試」方式實作功能
+- 需要修復 bug 並確保有測試保護
 
-**不適用情境：** 純 refactor（沒有新 behavior 需要驗證）、純 debug（只需要定位原因，不實際修復）、純讀碼或探索任務、使用者沒有要求測試先行的一般實作任務。
+**不應使用的情況：** 純設定變更、文件更新或無行為影響的靜態內容修改。
+
+## 哲學
+
+**核心原則**：測試應驗證行為，而非實作細節。程式碼可以全面改寫，測試不應因此失效。
+
+**好測試**是整合式：透過公開 API 測真實執行路徑，描述*系統做什麼*而非*怎麼做*。這類測試能存活於重構，因為它不在乎內部結構。
+
+**壞測試**耦合實作：mock 內部協作者、測試私有方法、或透過外部手段驗證。警訊：重構後測試失敗，但行為沒變。
+
+詳細範例與 mocking 守則，讀取 `references/tests.md`。
+
+## 反模式：水平切片
+
+**不要先寫所有測試，再寫所有實作。** 這是「水平切片」。批量寫出的測試在測想像中的行為，不是真實的行為。
+
+```
+錯誤（水平）：
+  RED:   test1, test2, test3, test4, test5
+  GREEN: impl1, impl2, impl3, impl4, impl5
+
+正確（垂直）：
+  RED→GREEN: test1→impl1
+  RED→GREEN: test2→impl2
+  ...
+```
 
 ## 核心流程
 
-### 步驟 1：Planning（強制執行）
+以下為功能實作流程。收到 bug report 時，改見「Bug Fix 流程」。
 
-1. 列出 public interface：輸入參數結構、回傳值結構、錯誤情境的對外表現。只描述對外契約，不描寫內部結構。
-2. 列出要驗證的 behavior，一條一句話，句型為「給定 X，當 Y 發生時，預期 Z」。描述的是行為，不是實作步驟。
-3. 標註優先序：critical path 與邊界條件排在前面，次要情境排在後面。
-4. 如果 interface 或 behavior 寫不出來，代表需求尚未明確；立即停止 skill，請使用者先釐清需求（或自行透過 `/ito-grill` 收斂），不要進入步驟 2。
-5. 將步驟 1–3 的 Planning 結果輸出給使用者，並**明確暫停等待批准**。使用者回覆 OK 或等義的確認後，才能進入步驟 2。
-6. 如果任務屬於修 bug，跳過本步驟，改走下方「Bug 流程（Prove-It Pattern）」。
+### 步驟 1：規劃
 
-### 步驟 2：Tracer Bullet（第一顆曳光彈）
+寫任何程式碼之前：
 
-1. 從優先序最高的 behavior 挑 **一** 條作為 tracer。
-2. **RED**：為這條 behavior 寫一個 failing test。讀取 `references/tests.md` 以提取 behavior-focused 測試的撰寫模式，以及 TypeScript／React／NestJS 範例。
-3. 執行測試框架，確認該 test 確實失敗，而且失敗原因符合預期。如果 test 一寫就通過、或是以非預期的原因失敗，代表它沒有真的驗證到目標行為，必須重寫。
-4. **GREEN**：寫出**剛好足夠**讓這條 test 通過的實作。禁止預先處理還沒寫出來的 test。
-5. 執行測試，確認該 test 通過，而且沒有讓其他既有 test 失敗。
+- 確認需要哪些介面變更
+- 確認要測哪些行為，排定優先級
+- 識別 deep module 機會，讀取 `references/design.md`
+- 列出要測試的行為，不是實作步驟
+- 取得使用者核准
 
-### 步驟 3：Incremental Loop（每多一條 behavior 重複一次）
+**無法測試所有事情。** 聚焦關鍵路徑和複雜邏輯，不是每一個邊界條件。
 
-對 Planning 清單上剩餘的每一條 behavior，重複 RED → GREEN：
+### 步驟 2：Tracer Bullet
 
-1. 挑下一條 behavior，寫下一個 failing test。
-2. 執行測試，確認失敗。
-3. 寫出剛好足夠讓它通過的實作。
-4. 執行測試，確認整套測試通過。
+寫一個測試確認系統的一件事：
 
-**守則：**
+```
+RED:   為第一個行為寫測試 → 測試失敗
+GREEN: 寫最少程式碼通過測試 → 測試通過
+```
 
-- 一回合只動一個 test。
-- 只寫當前這條 test 需要的 code，不預判下一條 test。
-- test 專注在「可觀察的 behavior」，透過 public interface 驗證，不碰 private function 或 internal state。
-- 禁止 horizontal slice：不可一次寫完所有 test 再開始寫實作。讀取本檔「常見合理化藉口」章節以理解為何必須拒絕這種作法。
+寫測試時，讀取 `references/tests.md` 了解實務守則。
 
-### 步驟 4：Refactor
+這是 tracer bullet，確認路徑端到端可行。
 
-1. 進入 refactor 之前，確認所有 test 都處於 GREEN。
-2. 讀取 `references/refactoring.md` 以提取 refactor 前置條件、動作清單與執行順序。
-3. 每完成一個 refactor 動作，立即跑全套測試，確認仍為 GREEN。
-4. 如果 refactor 過程中出現測試失敗，立即 revert 該次動作，不要為了遷就 refactor 而修改 test。
-5. 如果發現目前 interface 設計不便於擴充或測試，讀取 `references/interface-design.md` 以提取 deep module 與 testability 原則。
+### 步驟 3：漸進循環
 
-**禁止事項：** RED 狀態下禁止 refactor；先回到 GREEN，才能進入 refactor。
+針對每個剩餘行為重複：
 
-### 分支流程：Bug 流程（Prove-It Pattern）
+```
+RED:   寫下一個測試 → 失敗
+GREEN: 最少程式碼通過 → 通過
+```
 
-當任務為修 bug 時適用，取代步驟 1–4 的主流程：
+守則：一次一個測試，只寫足以通過當前測試的程式碼，不預先猜測未來的測試，聚焦於可觀察的行為。
 
-1. 閱讀 bug report，定位受影響的 public interface。
-2. **RED**：寫一個 failing test 來重現該 bug。test 的描述是「給定重現條件，當觸發時，預期正確的行為」，而不是「預期目前錯誤的輸出」。
-3. 執行測試，確認該 test 確實失敗，而且失敗訊息對得上 bug 描述。如果無法重現，代表還沒找到根因；立即停止修復動作，回頭釐清重現條件。
-4. **GREEN**：修改 code，讓 failing test 通過。
-5. 執行全套測試，確認 bug test 通過，而且沒有讓其他既有 test 失敗。
-6. 如果修復過程涉及 mocking 決策，讀取 `references/mocking.md` 以提取優先序與判斷邏輯。
+### 步驟 4：重構
 
-## 具體技巧／模式
+所有測試通過後，尋找重構候選：
 
-- **驗 behavior 而非驗 implementation**：test 透過 public interface 驗證對外行為。如果單純 rename、搬動檔案、或重構內部結構後 test 就失敗，代表它耦合到了實作細節，必須重寫。
-- **反 horizontal slice**：不要把所有 test 列完再開始寫實作。這會讓 test 驗證的是「想像中的 behavior」而不是「實際需要的 behavior」。正確作法是 vertical slice：一條 test → 一段實作，下一回合再依上一回合學到的事調整。
-- **最小實作**：GREEN 階段只寫剛好足夠讓當前 test 通過的 code。出現「順便把其他分支也寫一寫」的念頭時，停下來，把它留給下一條 test 驅動。
-- **參考資料分布**：介面設計原則在 `references/interface-design.md`、mocking 判斷邏輯在 `references/mocking.md`、refactor checklist 在 `references/refactoring.md`、behavior test 模式在 `references/tests.md`。
+- **重複邏輯** → 提取函式或 class
+- **過長方法** → 拆成私有 helper（測試保留在公開介面上）
+- **Shallow module** → 合併或深化
+- **Feature envy** → 把邏輯移到資料所在之處
+- **Primitive obsession** → 引入 value object
+- **既有程式碼** 被新程式碼揭示出的問題
+
+**RED 時絕不重構。** 先到達 GREEN，每次重構後立即執行測試。
+
+## Bug Fix 流程
+
+### Prove-It Pattern
+
+收到 bug report 時，不要直接修 bug，先寫重現測試：
+
+```
+收到 Bug report
+       ↓
+寫一個能展示 bug 的測試
+       ↓
+測試 FAILS（確認 bug 存在）
+       ↓
+實作 fix
+       ↓
+測試 PASSES（證明 fix 有效）
+       ↓
+跑完整測試套件（確認無 regression）
+```
+
+```typescript
+// Bug：「完成任務時沒有更新 completedAt」
+
+// 步驟 1：寫重現測試（應該 FAIL）
+it('完成任務時設定 completedAt', async () => {
+  const task = await taskService.create({ title: 'Test' });
+  const completed = await taskService.complete(task.id);
+
+  expect(completed.status).toBe('completed');
+  expect(completed.completedAt).toBeInstanceOf(Date); // 此行失敗 → bug 確認
+});
+
+// 步驟 2：修 bug，步驟 3：測試通過 → regression 防護到位
+```
+
+## 每輪檢查清單
+
+每完成一個 RED→GREEN 循環後確認：
+
+- [ ] 測試描述行為，而非實作
+- [ ] 測試只使用公開介面
+- [ ] 測試能存活內部重構
+- [ ] 程式碼是通過當前測試的最小實作
+- [ ] 沒有加入推測性的功能
 
 ## 常見合理化藉口
 
 | 合理化藉口 | 實際情況 |
 |---|---|
-| 「這題太簡單不需要寫 test」 | 沒有 test 的 code path 在後續 refactor 時完全沒有保護，改壞了也不會被發現；長期累積的成本遠高於當下寫一條 test 的成本。 |
-| 「先寫實作比較快，等下再補 test」 | 事後補的 test 會貼合現有 code 的形狀，而不是原本的 behavior，變成一張無法偵測 regression 的假安全網。 |
-| 「一次把所有 test 寫完再開始實作比較有規劃感」 | 這是 horizontal slice 反模式。一次批次寫出的 test 驗證的是想像中的行為，常出現「behavior 改了但 test 仍通過」或「behavior 沒改但 test 卻失敗」的怪狀況。 |
-| 「先 refactor 一下，等一下再把 test 跑回 GREEN」 | RED 狀態下做 refactor 會混淆「這次改壞了」與「還沒寫完」，破壞 TDD 的反饋迴路。必須先回到 GREEN，才能 refactor。 |
-| 「直接 mock 最快」 | mock 是最後手段。讀取 `references/mocking.md` 以提取 real → fake → stub → mock 的優先序與判斷邏輯，再決定是否真的需要 mock。 |
-| 「bug 先把 code 改好，test 之後再補」 | 這條路徑從來沒驗證過「這條 test 真的能偵測這個 bug」。正確流程是 Prove-It：先寫 failing test 並親眼看到它失敗，才算確認這條 test 真的有鎖定這個 bug。 |
+| 「先把功能寫完再補測試」 | 事後補寫的測試測實作而非行為，而且通常根本不會補 |
+| 「這太簡單了不需要測試」 | 簡單的程式碼會變複雜，測試記錄了預期行為 |
+| 「一次把所有 test 寫完比較快」 | 批量寫出的測試測想像的行為，不是真實的行為 |
+| 「修完 bug 再補重現測試就好」 | 先有重現測試才能證明 bug 存在，也才能防止 regression |
+| 「重構不需要跑測試這麼頻繁」 | 重構時每一步都要跑，才能知道是哪一步壞掉的 |
 
 ## 警訊
 
-- Planning 步驟被跳過或縮成一句話：違反強制 Planning 規則。
-- 使用者還沒批准 Planning 就進入寫 test：違反 user approval 規則。
-- 同一回合寫了多個 test：違反「一回合一 test」。
-- test 內容檢查 method 被呼叫幾次、驗證 private 欄位、或直接查 DB 驗資料：驗到了 implementation 而不是 behavior。
-- test 一寫就通過、完全沒出現 RED 階段：沒有驗證「這條 test 真的能偵測目標行為」。
-- GREEN 之後沒接著寫下一條 test，直接寫下一段實作：跳過了 RED 環節。
-- Refactor 過程沒有反覆跑測試：失去了 safety net 的保護。
-- 修 bug 的 commit 裡只有 code 沒有 test：跳過了 Prove-It。
-- 規劃描述中出現「先把所有 test 寫完」：horizontal slice 警訊。
+- 寫程式碼前沒有對應的失敗測試
+- 一次寫多個測試再一起實作（水平切片）
+- 測試在第一次執行就通過
+- 重構時測試失敗但行為沒有改變（測試耦合了實作）
+- 修 bug 時沒有先寫重現測試
 
 ## 驗證
 
-- [ ] Planning 三項（interface、behaviors、priority）皆已列出且使用者已批准。
-- [ ] 每一條 behavior 至少對應一條 test。
-- [ ] 每條 test 寫出來時都先觀察到 RED，再靠實作變為 GREEN。
-- [ ] 所有 test 都只透過 public interface 驗證，沒有碰 private 欄位或 internal state。
-- [ ] Refactor 動作僅在全套 test GREEN 時進行，refactor 完成後整套 test 維持 GREEN。
-- [ ] 修 bug 時，每一個 fix 都有一條對應的 failing test 先重現問題；該 test 在未修復時失敗、修復後通過。
-- [ ] 交付前跑過完整測試並全部通過，沒有被 skip 或 disable 的 test。
-
-## 錯誤處理
-
-- Planning 階段 interface 或 behavior 寫不出來：代表需求尚未明確。停止 skill，建議使用者改用 `/ito-grill` 收斂需求，或自行釐清後再回來執行。
-- 第一條 test 寫不出來（想不出怎麼驗）：代表目前 interface 設計不便於測試。讀取 `references/interface-design.md` 以提取 deep module 與 testability 原則，重新設計 interface 後再嘗試。
-- bug 寫不出能重現的 failing test：代表尚未找到根因。停止 Prove-It 流程，回頭釐清重現條件，不要直接改 code。
-- Refactor 過程讓既有 test 失敗：立即 revert 這次 refactor，不要修改 test 來遷就 refactor。
-- test 永遠停在 RED、寫不出能通過的實作：代表 behavior 切得太大。把該 behavior 拆成更小的子 behavior，再從最小的那一條重新開始。
-- 改動 behavior 後 test 卻不會失敗：代表該 test 沒有真的綁到 behavior（很可能綁到了實作形狀），必須重寫該 test。
+- [ ] 每個新行為都有對應測試
+- [ ] 所有測試通過
+- [ ] bug fix 包含一個在 fix 之前失敗的重現測試
+- [ ] 測試名稱描述被驗證的行為
+- [ ] 沒有跳過或停用的測試
 
 ## 延伸參考
 
-- `references/interface-design.md`：為可測試而設計的介面原則（包含 deep modules：窄介面、深實作）。
-- `references/mocking.md`：mocking 哲學與優先序（real → fake → stub → mock）的判斷邏輯。
-- `references/refactoring.md`：Refactor 階段的前置條件、動作清單、執行順序與範例。
-- `references/tests.md`：何謂好的 behavior test，包含判斷標準、命名、斷言模式與 TypeScript／React／NestJS 範例。
+- `references/tests.md`：好測試與壞測試的對比範例，mocking 守則，DAMP、AAA、One Assertion Per Concept 等寫測試實務
+- `references/design.md`：為 testability 設計介面，deep module 模式
